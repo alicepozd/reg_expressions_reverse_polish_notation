@@ -2,82 +2,58 @@
 #include <stack>
 #include <string>
 #include <set>
+#include <algorithm>
 
-class RegExprInfo {
-public:
-    RegExprInfo(char exp, char letter) {
-        if (letter == exp) {
-            possible_remainder.insert(1);
-        } else {
-            possible_remainder.insert(0);
-        }
-    }
 
-    RegExprInfo(std::set<int> reminders_set) {
-        possible_remainder = reminders_set;
-    }
-
-    bool has_reminder_0() const {
-        return possible_remainder.end() != possible_remainder.find(0);
-    }
-
-    const std::set<int>& get_set() const {
-        return possible_remainder;
-    }
-
-    ~RegExprInfo() = default;
-private:
-    std::set<int> possible_remainder;
+enum Symbols {
+    PLUS,
+    MUL,
+    STAR,
+    LETTER
 };
 
 
-int NOD(int first, int second) {
-    while (second) {
-        first = first % second;
-        std::swap(first, second);
+Symbols symbol_by_char(char letter) {
+    if (letter == '+') {
+        return PLUS;
+    } else if (letter == '.') {
+        return MUL;
+    } else if (letter == '*') {
+        return STAR;
     }
-    return first;
+    return LETTER;
 }
 
 
-RegExprInfo operator_plus(const RegExprInfo& first, const RegExprInfo& second) {
-    std::set<int> new_set(first.get_set());
-    const std::set<int>& second_set(second.get_set());
-    for (int elem : second_set) {
+std::set<int> operator_plus(const std::set<int>& first, const std::set<int>& second) {
+    std::set<int> new_set;
+    for (int elem : second) {
         new_set.insert(elem);
     }
-    RegExprInfo new_exp_info(new_set);
-    return new_exp_info;
+    for (int elem : first) {
+        new_set.insert(elem);
+    }
+    return new_set;
 }
 
 
-RegExprInfo operator_multiplication(const RegExprInfo& first, const RegExprInfo& second, int k) {
+std::set<int> operator_multiplication(const std::set<int>& first, const std::set<int>& second, int k) {
     std::set<int> new_set;
-    const std::set<int>& first_set(first.get_set());
-    const std::set<int>& second_set(second.get_set());
-    for (int first_elem : first_set) {
-        for (int second_elem : second_set) {
+    for (int first_elem : first) {
+        for (int second_elem : second) {
             new_set.insert((first_elem + second_elem) % k);
         }
     }
-    RegExprInfo new_exp_info(new_set);
+    std::set<int> new_exp_info(new_set);
     return new_exp_info;
 }
 
 
-RegExprInfo operator_star(const RegExprInfo& exp_info, int k) {
+std::set<int> operator_star(const std::set<int>& expression, int k) {
     std::set<int> new_set;
-    const std::set<int>& exp_set(exp_info.get_set());
-    int nod = -1;
-    for (int elem : exp_set) {
-        if (elem == 0) {
-            continue;
-        }
-        if (nod == -1) {
-            nod = elem;
-        } else {
-            nod = NOD(nod, elem);
-        }
+    int nod = 0;
+    for (int elem : expression) {
+        nod = std::__gcd(nod, elem);
     }
     int new_elem = nod;
     bool begin = true;
@@ -86,65 +62,68 @@ RegExprInfo operator_star(const RegExprInfo& exp_info, int k) {
         new_set.insert(new_elem);
         new_elem = (new_elem + nod) % k;
     }
-    RegExprInfo new_exp_info(new_set);
+    std::set<int> new_exp_info(new_set);
     return new_exp_info;
 }
 
 
-bool plus_process(std::stack<RegExprInfo>& st, std::string string_ans) {
-    if (st.empty()) {
+bool process_letter(std::stack<std::set<int>>& st, char expression, char letter) {
+    std::set<int> new_set;
+    if (letter == expression) {
+        new_set.insert(1);
+    } else {
+        new_set.insert(0);
+    }
+    st.push(new_set);
+}
+
+
+bool process_plus(std::stack<std::set<int>>& st, std::string string_ans) {
+    if (st.size() < 2) {
         string_ans = "ERROR: not correct regular expression";
         return false;
     }
-    RegExprInfo first = st.top();
+    std::set<int> first = st.top();
     st.pop();
-    if (st.empty()) {
-        string_ans = "ERROR: not correct regular expression";
-        return false;
-    }
-    RegExprInfo second = st.top();
+    std::set<int> second = st.top();
     st.pop();
-    st.push(std::move(operator_plus(first, second)));
+    st.push(operator_plus(first, second));
     return true;
 }
 
 
-bool multiplication_process(std::stack<RegExprInfo>& st, std::string string_ans, int k) {
-    if (st.empty()) {
+bool process_multiplication(std::stack<std::set<int>>& st, std::string string_ans, int k) {
+    if (st.size() < 2) {
         string_ans = "ERROR: not correct regular expression";
         return false;
     }
-    RegExprInfo first = st.top();
+    std::set<int> first = st.top();
     st.pop();
-    if (st.empty()) {
-        string_ans = "ERROR: not correct regular expression";
-        return false;
-    }
-    RegExprInfo second = st.top();
+    std::set<int> second = st.top();
     st.pop();
-    st.push(std::move(operator_multiplication(first, second, k)));
+    st.push(operator_multiplication(first, second, k));
     return true;
 }
 
 
-bool star_process(std::stack<RegExprInfo>& st, std::string string_ans, int k) {
+bool process_star(std::stack<std::set<int>>& st, std::string string_ans, int k) {
     if (st.empty()) {
         string_ans = "ERROR: not correct regular expression";
         return false;
     }
-    RegExprInfo exp = st.top();
+    std::set<int> exp = st.top();
     st.pop();
-    st.push(std::move(operator_star(exp, k)));
+    st.push(operator_star(exp, k));
     return true;
 }
 
 
-void end_expr_process(std::stack<RegExprInfo>& st, std::string& string_ans) {
+void end_expr_process(std::stack<std::set<int>>& st, std::string& string_ans) {
     if (st.empty()) {
         string_ans = "ERROR: not correct regular expression";
     }
     if (string_ans.empty()) {
-        if (st.top().has_reminder_0()) {
+        if (st.top().end() != st.top().find(0)) {
             string_ans = "YES";
         } else {
             string_ans = "NO";
@@ -158,26 +137,26 @@ void end_expr_process(std::stack<RegExprInfo>& st, std::string& string_ans) {
 
 
 std::string has_div_k_words(std::string reg_expr, char letter, int k) {
-    std::stack<RegExprInfo> st;
+    std::stack<std::set<int>> st;
     std::string string_ans;
     for (int i = 0; i < reg_expr.size(); ++i) {
-        if (reg_expr[i] == 'a' | reg_expr[i] == 'b' | reg_expr[i] == 'c' | reg_expr[i] == '1') {
-            st.push(RegExprInfo(reg_expr[i], letter));
-        } else if (reg_expr[i] == '+'){
-            if (!plus_process(st, string_ans)) {
-                break;
-            }
-        } else if (reg_expr[i] == '.') {
-            if (!multiplication_process(st, string_ans, k)) {
-                break;
-            }
-        } else if (reg_expr[i] == '*') {
-            if (!star_process(st, string_ans, k)) {
-                break;
-            }
-        } else {
-            string_ans = "ERROR: not correct regular expression";
-            break;
+        std::cout << symbol_by_char(reg_expr[i]);
+        switch (symbol_by_char(reg_expr[i])) {
+            case LETTER:
+                process_letter(st, reg_expr[i], letter);
+            case PLUS:
+                if (!process_plus(st, string_ans)) {
+                    break;
+                }
+            case MUL:
+                if (!process_multiplication(st, string_ans, k)) {
+                    break;
+                }
+            case STAR:
+                std::cout << "!";
+                if (!process_star(st, string_ans, k)) {
+                    break;
+                }
         }
     }
     end_expr_process(st, string_ans);
